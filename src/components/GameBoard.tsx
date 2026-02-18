@@ -1,12 +1,47 @@
 import React, { useState, useEffect } from 'react';
 import { useGameStore } from '../engine/GameState';
 import { Card } from './Card';
-import { Timeline } from './Timeline';
 import clsx from 'clsx';
 import { PauseMenu } from './PauseMenu';
 import { WelcomeModal, useWelcomeModal } from './WelcomeModal';
 import { Tooltip } from './Tooltip';
 import { motion } from 'framer-motion';
+import type { TimelineEntry } from '../engine/GameTypes';
+
+// Inline row so height resolves correctly inside a flex-1 scroll container
+const TimelineRow: React.FC<{ entry: TimelineEntry }> = ({ entry }) => {
+    const desc = entry.card.description.toLowerCase();
+    const isDamage = desc.includes('damage');
+    const isDefence = desc.includes('defence');
+    return (
+        <div className={clsx(
+            "w-full min-h-[44px] border rounded p-1.5 flex items-center justify-between shadow-sm transition-colors",
+            isDamage ? "border-red-500/20 bg-red-950/10"
+                : isDefence ? "border-green-500/20 bg-green-950/10"
+                    : "border-cyan-500/20 bg-cyan-950/10"
+        )}>
+            <div className="flex flex-col flex-1 truncate">
+                <div className="text-[11px] md:text-[10px] font-black text-white leading-none truncate uppercase">
+                    {entry.card.name}
+                </div>
+                <div className="text-[9px] md:text-[7px] text-slate-500 font-mono mt-0.5">
+                    TURN_0{entry.turnPlayed}
+                </div>
+            </div>
+            <div className={clsx(
+                "text-[10px] md:text-[9px] font-bold px-1.5 py-0.5 rounded border flex items-center gap-1 shrink-0 ml-2",
+                isDamage ? "text-red-400 bg-red-950/50 border-red-800/50"
+                    : isDefence ? "text-green-400 bg-green-950/50 border-green-800/50"
+                        : "text-blue-400 bg-blue-950/50 border-blue-800/50"
+            )}>
+                <span className="opacity-60 text-[8px] md:text-[7px] font-mono uppercase">
+                    {isDamage ? 'Dmg' : isDefence ? 'Def' : 'Val'}
+                </span>
+                <span>{entry.card.power ?? entry.card.cost}</span>
+            </div>
+        </div>
+    );
+};
 
 export const GameBoard: React.FC = () => {
     const { players, timeline, currentPlayerId, playCard, endTurn, turn, winner, resetGame, runStage } = useGameStore();
@@ -127,10 +162,10 @@ export const GameBoard: React.FC = () => {
             </div>
 
             {/* ── Main Battle Area ─────────────────────────────────────────────── */}
-            <div className="flex-1 flex flex-col relative min-h-0 p-3 md:p-6 gap-2 md:gap-4">
+            <div className="flex-1 min-h-0 flex flex-col p-3 md:p-6 gap-2 md:gap-4 overflow-hidden">
 
                 {/* Enemy HUD */}
-                <div className="flex justify-center">
+                <div className="shrink-0 flex justify-center">
                     <div className="w-full max-w-md bg-slate-900/80 border border-slate-700 rounded-2xl p-3 md:p-6 backdrop-blur-md shadow-2xl border-red-500/20">
                         <div className="flex items-center gap-3 md:gap-6">
                             <div className="w-12 h-12 md:w-20 md:h-20 rounded-full bg-slate-800 border-2 border-red-500 flex items-center justify-center font-black text-xl md:text-3xl shrink-0 shadow-[0_0_30px_rgba(239,68,68,0.4)]">
@@ -153,36 +188,50 @@ export const GameBoard: React.FC = () => {
                     </div>
                 </div>
 
-                {/* ── Timeline — centre strip ── */}
-                <div className="flex-1 flex flex-col min-h-0 opacity-80 hover:opacity-100 transition-opacity duration-500">
-                    <div className="text-[10px] uppercase tracking-[0.4em] text-cyan-500/40 font-black text-center border-b border-slate-800 pb-2 mb-2">
+                {/* ── Timeline — min-h-[160px] guarantees it's always visible ── */}
+                <div className="flex-1 min-h-[160px] flex flex-col border border-slate-800/50 rounded-xl bg-slate-900/30 overflow-hidden">
+                    <div className="shrink-0 text-[10px] uppercase tracking-[0.4em] text-cyan-500/60 font-black text-center border-b border-slate-800 py-1.5">
                         Operational_History
                     </div>
-                    <div className="flex-1 flex gap-4 overflow-hidden">
+                    {/* Column headers */}
+                    <div className="shrink-0 flex gap-4 px-2 pt-1.5 pb-1 border-b border-slate-800/50">
+                        <div className="flex-1 text-[9px] font-black text-green-500/70 uppercase tracking-widest text-center">USER_UPLINK</div>
+                        <div className="w-px bg-slate-800/60 shrink-0" />
+                        <div className="flex-1 text-[9px] font-black text-red-500/70 uppercase tracking-widest text-center">AI_SEQUENCE</div>
+                    </div>
+                    {/* Scrollable columns — explicit height from parent's flex-1 */}
+                    <div className="flex-1 flex gap-0 overflow-hidden">
                         {/* Player column */}
-                        <div className="flex-1 flex flex-col items-center min-w-0">
-                            <div className="text-[9px] font-black text-green-500/50 mb-2 uppercase tracking-widest">USER_UPLINK</div>
-                            <div className="flex-1 overflow-y-auto w-full custom-scrollbar">
-                                <Timeline entries={timeline.filter(e => e.ownerId === 'p1')} />
+                        <div className="flex-1 overflow-y-auto custom-scrollbar">
+                            <div className="flex flex-col gap-1.5 p-1.5">
+                                {timeline.filter(e => e.ownerId === 'p1').length === 0 ? (
+                                    <div className="text-slate-700 text-[9px] font-mono tracking-widest text-center uppercase py-4">—</div>
+                                ) : (
+                                    timeline.filter(e => e.ownerId === 'p1').map((entry, idx) => (
+                                        <TimelineRow key={`p1-${entry.card.id}-${idx}`} entry={entry} />
+                                    ))
+                                )}
                             </div>
                         </div>
                         {/* Divider */}
                         <div className="w-px bg-slate-800/60 shrink-0" />
                         {/* Enemy column */}
-                        <div className="flex-1 flex flex-col items-center min-w-0">
-                            <div className="text-[9px] font-black text-red-500/50 mb-2 uppercase tracking-widest">AI_SEQUENCE</div>
-                            <div className="flex-1 overflow-y-auto w-full custom-scrollbar">
-                                <Timeline entries={timeline.filter(e => e.ownerId === 'p2')} />
+                        <div className="flex-1 overflow-y-auto custom-scrollbar">
+                            <div className="flex flex-col gap-1.5 p-1.5">
+                                {timeline.filter(e => e.ownerId === 'p2').length === 0 ? (
+                                    <div className="text-slate-700 text-[9px] font-mono tracking-widest text-center uppercase py-4">—</div>
+                                ) : (
+                                    timeline.filter(e => e.ownerId === 'p2').map((entry, idx) => (
+                                        <TimelineRow key={`p2-${entry.card.id}-${idx}`} entry={entry} />
+                                    ))
+                                )}
                             </div>
                         </div>
                     </div>
-                    <div className="mt-2 text-[8px] text-slate-700 font-mono animate-pulse uppercase tracking-widest text-center bg-black/40 py-1.5 rounded">
-                        [ LOG_VIEW_ACTIVE ]
-                    </div>
                 </div>
 
-                {/* Player HUD */}
-                <div className="flex justify-center">
+                {/* Player HUD — shrink-0 so it never grows to steal timeline space */}
+                <div className="shrink-0 flex justify-center">
                     <div className="w-full max-w-2xl bg-slate-900/95 border-2 border-cyan-500/40 rounded-2xl md:rounded-3xl p-4 md:p-8 backdrop-blur-2xl shadow-[0_0_60px_rgba(0,0,0,0.6)]">
                         <div className="flex items-center gap-4 md:gap-12">
                             <Tooltip content={`System Integrity: ${player.health}/${player.maxHealth}`}>
